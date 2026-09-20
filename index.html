@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>扫雷</title>
+  <meta name="description" content="纯前端扫雷。">
+  <link rel="stylesheet" href="css/style.css?v=27">
+</head>
+<body>
+  <main class="app">
+    <h1 class="title" data-i18n="app.title">扫雷</h1>
+
+    <section class="panel">
+      <div class="hud">
+        <div class="hud__group">
+          <div class="hud__num" id="mineCounter"
+               data-i18n-aria="hud.mines" data-i18n-title="hud.mines">010</div>
+          <div class="hud__num hud__num--rate hud__num--idle" id="winRate"
+               data-i18n-aria="hud.rate">—</div>
+        </div>
+        <button class="face" id="face" type="button" data-i18n-aria="hud.restart">🙂</button>
+        <div class="hud__group">
+          <div class="hud__num" id="timer"
+               data-i18n-aria="hud.time" data-i18n-title="hud.time">000</div>
+        </div>
+      </div>
+
+      <div class="board-wrap" id="boardWrap">
+        <div class="board" id="board" role="grid" tabindex="0" data-i18n-aria="app.boardLabel"></div>
+      </div>
+    </section>
+
+    <section class="tools">
+      <div class="group">
+        <span class="group__label" data-i18n="tools.difficulty">难度</span>
+        <select id="difficulty" class="select"></select>
+      </div>
+
+      <div class="group">
+        <span class="group__label" data-i18n="tools.mode">模式</span>
+        <select id="mode" class="select">
+          <option value="classic" data-i18n="mode.classic">经典</option>
+          <option value="assisted" data-i18n="mode.assisted">辅助 · 显概率</option>
+        </select>
+      </div>
+
+      <div class="group group--sub" id="custom">
+        <span class="group__label" data-i18n="tools.custom">自定义</span>
+        <label class="field">
+          <span class="field__label" data-i18n="tools.rows">行</span>
+          <input class="input" id="customRows" type="number" min="1" max="40" value="12">
+        </label>
+        <label class="field">
+          <span class="field__label" data-i18n="tools.cols">列</span>
+          <input class="input" id="customCols" type="number" min="1" max="40" value="12">
+        </label>
+        <label class="field">
+          <span class="field__label" data-i18n="tools.mines">雷</span>
+          <input class="input" id="customMines" type="number" min="0" value="25">
+        </label>
+        <label class="field">
+          <span class="field__label" data-i18n="tools.seed">种子</span>
+          <input class="input" id="customSeed" type="text" inputmode="numeric" placeholder="随机">
+        </label>
+        <button class="btn" id="customStart" type="button" data-i18n="tools.start">开始</button>
+      </div>
+    </section>
+
+    <ul class="hint">
+      <li><kbd data-i18n="key.left">左键</kbd><span data-i18n="act.reveal">翻开</span></li>
+      <li><kbd data-i18n="key.right">右键</kbd><span data-i18n="act.flag">插旗</span></li>
+      <li><kbd data-i18n="key.middle">中键</kbd><span data-i18n="act.chordViaNumber">／点数字 和弦展开</span></li>
+      <li><kbd data-i18n="key.tap">单击</kbd><span data-i18n="act.flagOnTouch">插旗（触摸端）</span></li>
+      <li><kbd data-i18n="key.longPress">长按</kbd><span data-i18n="act.revealOnTouch">翻开（触摸端）</span></li>
+      <li>
+        <kbd data-i18n="key.arrows">方向键</kbd><kbd data-i18n="key.space">空格</kbd>
+        <span data-i18n="act.moveOrReveal">移动／翻开</span>
+      </li>
+      <li>
+        <kbd data-i18n="key.f">F</kbd><kbd data-i18n="key.r">R</kbd>
+        <span data-i18n="act.flagOrRestart">插旗／重开</span>
+      </li>
+      <li><kbd data-i18n="key.shift">Shift</kbd><span data-i18n="act.replay">＋笑脸 复现上一局</span></li>
+    </ul>
+
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </main>
+
+  <!-- 这里刻意不标 data-i18n：关掉 JS 才轮到它显示，而那时候 i18n 也跑不了 -->
+  <noscript>这个页面需要启用 JavaScript 才能运行。 / This page needs JavaScript enabled.</noscript>
+
+  <!-- ?v=N 是为了绕开本地静态服务器的启发式缓存（例如 python -m http.server 不发
+       Cache-Control，浏览器可能一直拿旧脚本）。改完 js/css 后把这个数字 +1 即可。 -->
+  <script type="module" src="js/ui.js?v=27"></script>
+</body>
+</html>

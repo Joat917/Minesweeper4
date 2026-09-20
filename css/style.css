@@ -1,0 +1,560 @@
+/* ==================================================================
+   style.css —— 只管长相，不含任何游戏逻辑
+   ================================================================== */
+
+/* ---------------- 设计令牌 ---------------- */
+:root {
+  color-scheme: light dark;
+
+  /* HUD 里所有方块共用的高度：三个数值槽和笑脸必须一样高。
+     写死像素，不靠 padding + 行高凑 —— 行高是无单位的时候会随字号缩放，
+     内容一换高度就变（科学计数法收小字号时踩过这个坑）。
+     宽度不用统一，各自固定即可。 */
+  --hud-height: 42px;
+
+  --bg: #e8ecf3;
+  --bg-accent: #ffffff;
+  --text: #1b2333;
+  --muted: #6d788d;
+  --panel: #f6f8fc;
+  --panel-line: #ccd4e2;
+  --shadow-lg: 0 18px 44px rgba(24, 34, 60, .16);
+  --shadow-sm: 0 1px 2px rgba(24, 34, 60, .14);
+
+  /* 未翻开的格子：上亮下暗，做出微微凸起的手感 */
+  --tile-top: #ffffff;
+  --tile-bottom: #d3dae6;
+  --tile-line: #bfc8d8;
+  --tile-grad: linear-gradient(var(--tile-top), var(--tile-bottom));
+
+  /* 辅助模式的风险配色。
+     刻意压低饱和度、把亮度贴近底色，得到柔和的粉彩；三个值全部不透明 ——
+     格子的背景是直接算出来的实体渐变，不是叠在底色上的半透明层。
+     只有色相随概率变化，其余两个值固定，所以整盘看起来是同一套质感。 */
+  --risk-sat: 46%;
+  --risk-light-top: 94%;
+  --risk-light-bottom: 80%;
+
+  --grid-bg: #b9c3d4;
+  --open-bg: #e7ecf4;
+  --open-text: #46536d;
+  --open-empty: #dfe5ef;
+
+  /* 经典数字配色，略微调过对比度 */
+  --n1: #1a6fd4;
+  --n2: #128049;
+  --n3: #d63a3a;
+  --n4: #6a3fd0;
+  --n5: #b3541a;
+  --n6: #0d8d94;
+  --n7: #3f4859;
+  --n8: #7b8498;
+
+  --danger: #d63a3a;
+  --accent: #ff8a3d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12161f;
+    --bg-accent: #1b2130;
+    --text: #e8edf7;
+    --muted: #8c98ae;
+    --panel: #1a2030;
+    --panel-line: #2c3648;
+    --shadow-lg: 0 18px 44px rgba(0, 0, 0, .5);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .45);
+
+    --tile-top: #333d52;
+    --tile-bottom: #242c3d;
+    --tile-line: #171d29;
+    --tile-grad: linear-gradient(var(--tile-top), var(--tile-bottom));
+
+    /* 深色底上压饱和度和亮度，同样是实体色 */
+    --risk-sat: 34%;
+    --risk-light-top: 31%;
+    --risk-light-bottom: 22%;
+
+    --grid-bg: #131824;
+    --open-bg: #1c2333;
+    --open-text: #93a1bb;
+    --open-empty: #171d29;
+
+    --n1: #5aa2ff;
+    --n2: #4ecf8c;
+    --n3: #ff6b6b;
+    --n4: #b18cff;
+    --n5: #ffa156;
+    --n6: #45d0d8;
+    --n7: #c4cee2;
+    --n8: #8b96ad;
+
+    --danger: #ff5f5f;
+    --accent: #ffa156;
+  }
+}
+
+/* ---------------- 基础 ---------------- */
+* { box-sizing: border-box; }
+
+html, body { margin: 0; }
+
+body {
+  /* 内容放得下就垂直居中；放不下时 auto 边距退化为 0，顶部不会跑到屏幕外 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: clamp(12px, 2.5vh, 32px) 12px;
+  background:
+    radial-gradient(1100px 480px at 50% -8%, var(--bg-accent), transparent 65%),
+    var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app {
+  width: min(100%, 1000px);
+  margin-block: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ---------------- 标题 ---------------- */
+.title {
+  margin: 0;
+  font-size: clamp(20px, 3.4vw, 26px);
+  font-weight: 700;
+  letter-spacing: .18em;
+}
+
+/* ---------------- 棋盘面板：宽度贴着棋盘 ---------------- */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  padding: clamp(10px, 1.4vw, 14px);
+  border: 1px solid var(--panel-line);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ---------------- 收发室 ----------------
+   整行 flex 居中 + 内外同一档间距，所以四个组件（剩雷/胜率/笑脸/时间）
+   是作为一个整体居中的，而不是"笑脸居中、两侧各挂一个"。
+   经典模式没有胜率槽位，这一行剩三个等宽组件，笑脸自然落到正中。 */
+.hud {
+  --hud-gap: clamp(12px, 2.6vw, 24px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hud-gap);
+}
+
+.hud__group {
+  display: flex;
+  align-items: center;
+  gap: var(--hud-gap);
+}
+
+/* .hud__num 本身没设 display，但显式写一条防止将来加了 display 把 hidden 顶掉 */
+.hud__num[hidden] { display: none; }
+
+/* 基础样式在前，修饰类在后 —— 同优先级靠源码顺序决胜，顺序反了修饰类会被吃掉 */
+.hud__num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--hud-height);   /* 固定高度，内容怎么变都不动 */
+  min-width: 76px;
+  padding: 0 10px;             /* 竖直方向交给固定高度，不再靠 padding 撑 */
+  border-radius: 9px;
+  background: var(--open-empty);
+  border: 1px solid var(--panel-line);
+  box-shadow: inset 0 1px 3px rgba(20, 30, 60, .16);
+  font: 700 23px/1.1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .08em;
+  color: var(--danger);
+}
+
+/* 胜率槽位宽度钉死。高度来自 --hud-height，和另外两个槽位一致。 */
+.hud__num--rate {
+  width: 100px;
+  min-width: 0;
+  font-size: 20px;
+  color: hsl(var(--risk-hue, 150), 72%, 34%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .hud__num--rate { color: hsl(var(--risk-hue, 150), 80%, 68%); }
+}
+
+/* 胜率掉到 1% 以下改用科学计数法，字符串变长（最多 8 字）。
+   收小字号并去掉字距让它排得下；盒子的宽高都不受这里影响。 */
+.hud__num--sci {
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.hud__num--warn { color: var(--accent); }
+
+/* 引擎没接入 / 经典模式：灰色，不受色相影响（必须排在 --rate 之后） */
+.hud__num--idle {
+  color: var(--muted);
+  font-size: 20px;
+}
+
+.face {
+  /* 和三个数值槽一样高（它是方的，所以宽也取同一个值） */
+  width: var(--hud-height);
+  height: var(--hud-height);
+  padding: 0;
+  border: 1px solid var(--panel-line);
+  border-radius: 12px;
+  background: linear-gradient(var(--tile-top), var(--tile-bottom));
+  box-shadow: var(--shadow-sm);
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform .08s ease, filter .12s ease;
+}
+
+.face:hover { filter: brightness(1.06); }
+.face:active { transform: scale(.94); }
+
+/* ---------------- 棋盘 ---------------- */
+.board-wrap {
+  max-width: 100%;
+  overflow: auto;              /* 只是兜底，正常尺寸下 fitBoard 会算到不出现滚动条 */
+  overscroll-behavior: contain;
+}
+
+.board {
+  --cols: 9;
+  --cell: 30px;                /* JS 的 fitBoard() 会按可用空间覆盖它 */
+
+  display: grid;
+  grid-template-columns: repeat(var(--cols), var(--cell));
+  grid-auto-rows: var(--cell);
+  gap: 2px;
+  width: max-content;
+  margin-inline: auto;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--grid-bg);
+  box-shadow: inset 0 2px 6px rgba(20, 30, 60, .22);
+  outline: none;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* ARIA 的分行容器，只为了语义，不参与布局 */
+.row { display: contents; }
+
+.cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--tile-grad);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), var(--shadow-sm);
+  font: 800 calc(var(--cell) * .58)/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--open-text);
+  transition: background .1s ease;
+  cursor: pointer;
+}
+
+/* 辅助模式的风险配色。
+   每个格子自己是一段实体渐变（上亮下暗，保留原本的手感），
+   两个色标都由色相算出来，全程不透明 —— 不叠任何半透明层，
+   所以底下的格纹不会透上来把颜色洗淡。 */
+.cell--risk {
+  background-image: linear-gradient(
+    hsl(var(--risk-hue, 150), var(--risk-sat), var(--risk-light-top)),
+    hsl(var(--risk-hue, 150), var(--risk-sat), var(--risk-light-bottom))
+  );
+  /* 换掉基础样式里那层半透明白高光：它会把颜色冲淡 */
+  box-shadow: var(--shadow-sm);
+}
+
+/* 概率为 1 的格子不额外加框：数字已经写着 100%，而"必然有雷"靠色相
+   走到最红那一端就够表达了。加描边会和这套低饱和的粉彩打架。 */
+
+/* 角标只在格子够大时出现。这个 class 由 fitBoard() 按格子边长切换，
+   而格子边长又完全由屏幕尺寸和棋盘行列数决定 —— 链条单向，别在这里加条件。 */
+.board--roomy .cell--risk::after {
+  content: attr(data-prob);
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  font-size: calc(var(--cell) * .3);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -.02em;
+  color: hsl(var(--risk-hue, 150), 52%, 32%);
+  /* 描边用格子自己那段的底色，不引入透明度 */
+  text-shadow:
+    0 0 3px hsl(var(--risk-hue, 150), var(--risk-sat), var(--risk-light-bottom)),
+    0 0 3px hsl(var(--risk-hue, 150), var(--risk-sat), var(--risk-light-bottom));
+  pointer-events: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* 深色底上亮字才看得清，色相不变 */
+  .board--roomy .cell--risk::after { color: hsl(var(--risk-hue, 150), 58%, 78%); }
+}
+
+@media (hover: hover) {
+  .cell:not(.cell--revealed):hover { filter: brightness(1.07) saturate(.95); }
+}
+
+/* 已翻开 */
+.cell--revealed {
+  background: var(--open-bg);
+  box-shadow: none;
+  cursor: default;
+}
+
+.cell--empty { background: var(--open-empty); }
+
+/* 旗子 / 问号 */
+.cell--flag { font-size: calc(var(--cell) * .6); }
+.cell--question { color: var(--n1); }
+
+/* 雷 */
+.cell--mine { font-size: calc(var(--cell) * .6); }
+
+.cell--boom {
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--danger), 0 0 14px rgba(214, 58, 58, .6);
+}
+
+/* 输局后标出插错的旗 */
+.cell--wrong {
+  color: var(--danger);
+  background: var(--open-empty);
+  text-decoration: line-through;
+}
+
+/* 数字配色 */
+.cell--n1 { color: var(--n1); }
+.cell--n2 { color: var(--n2); }
+.cell--n3 { color: var(--n3); }
+.cell--n4 { color: var(--n4); }
+.cell--n5 { color: var(--n5); }
+.cell--n6 { color: var(--n6); }
+.cell--n7 { color: var(--n7); }
+.cell--n8 { color: var(--n8); }
+
+/* 键盘光标 */
+.cell--cursor {
+  box-shadow: inset 0 0 0 2px var(--accent), inset 0 1px 0 rgba(255, 255, 255, .4);
+}
+
+/* ---------------- 工具条：整体居中，宽度贴着内容 ---------------- */
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 16px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--panel-line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+/* .tools 的 wrap 只负责让「三个分组之间」换行。
+   分组自己也得能 wrap，否则「自定义」那一组是不可分割的一整块 ——
+   4 个输入框加按钮横排开，窄屏上直接顶出容器。 */
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+
+.group__label {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: .06em;
+  white-space: nowrap;
+}
+
+/* 自定义分组：常驻显示，非自定义难度时整体标灰 */
+.group--sub {
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--open-empty);
+  transition: opacity .15s ease;
+}
+
+.group--sub.group--off { opacity: .45; }
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.field__label {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.select, .input, .btn {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg-accent);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 5px 8px;
+}
+
+.input { width: 66px; }
+
+.btn {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 6px 16px;
+  transition: filter .12s ease, transform .08s ease;
+}
+
+.btn:hover { filter: brightness(1.06); }
+.btn:active { transform: scale(.97); }
+
+.select:disabled,
+.input:disabled,
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: .7;
+}
+
+.select:focus-visible,
+.input:focus-visible,
+.btn:focus-visible,
+.face:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------------- 提示与状态 ---------------- */
+/* 操作提示：每条是「按键 → 动作」的一对，整对不可拆分地换行。
+   比原来那种用 · 串成一整段的写法清楚得多 —— 后者换行位置随机，
+   读起来分不清哪个键对应哪个动作。
+
+   max-width 是必需的，不只是好看：这一条的高度会随换行数变化，
+   而 fitBoard() 是用「app 总高 − 棋盘区高」反推可用高度的。
+   提示的宽度必须只取决于 .app 的宽度（定宽），不能取决于棋盘，
+   否则算格子和排版会互相追着跑。 */
+.hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 5px 18px;
+  max-width: 720px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.hint li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.hint kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--panel-line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--bg-accent);
+  font: inherit;
+  font-size: 11.5px;
+}
+
+/* 状态行：平时留空，只在结算或报错时出现。
+   宽度给到 720px 是为了英文 —— 状态消息是几段拼起来的，英文拼完比中文长
+   一半以上，660px 会折行。文案那边也一并压短了，两头一起收。 */
+.status {
+  margin: 0;
+  min-height: 1.4em;
+  max-width: 720px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.status--warn { color: var(--danger); font-weight: 600; }
+.status--win { color: var(--n2); font-weight: 600; }
+.status--lose { color: var(--danger); font-weight: 600; }
+
+/* ---------------- 窄屏 ---------------- */
+/*
+ * HUD 一行四个方块，桌面宽度下总共要 330px；320px 的手机上可用宽度只有
+ * 270px 左右，所以四个方块和它们的间距都得收一收才排得下。
+ * 工具条那边靠 .group 的 flex-wrap 自己换行，这里只是把每行的开销压小。
+ */
+@media (max-width: 520px) {
+  body { padding-left: 8px; padding-right: 8px; }
+
+  :root { --hud-height: 38px; }
+
+  .hud { --hud-gap: 8px; }
+
+  .hud__num {
+    min-width: 58px;
+    padding: 0 6px;
+    font-size: 19px;
+    letter-spacing: .04em;
+  }
+
+  .hud__num--rate { width: 80px; font-size: 17px; }
+  .hud__num--sci { font-size: 13px; }
+
+  .tools { gap: 8px 10px; padding: 8px 10px; }
+  .group--sub { padding: 6px 8px; }
+  .select, .input, .btn { font-size: 13px; padding: 4px 7px; }
+  .input { width: 54px; }
+
+  .hint { gap: 4px 12px; }
+}
+
+/* ---------------- 无障碍 ---------------- */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
