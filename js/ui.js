@@ -11,9 +11,9 @@
  */
 
 // ?v=N 与 index.html 里 script 标签的版本号保持一致，用来绕开启发式缓存
-import { Minesweeper, DIFFICULTIES, GameStatus } from './minesweeper.js?v=27';
-import { computeProbabilities, sampleLayout } from './probability.js?v=27';
-import { t, language } from './i18n.js?v=27';
+import { Minesweeper, DIFFICULTIES, GameStatus } from './minesweeper.js?v=28';
+import { computeProbabilities, sampleLayout } from './probability.js?v=28';
+import { t, language } from './i18n.js?v=28';
 
 const DIGITS = ['', '1', '2', '3', '4', '5', '6', '7', '8'];
 const LONG_PRESS_MS = 420;
@@ -117,8 +117,7 @@ let cursor = 0;
 let timerId = null;
 let press = null;            // 长按：{ index, timer }
 let pressPointer = 'mouse';  // 最近一次按下来自哪种输入设备
-let suppressUntil = 0;       // 长按刚处理完的一小段时间里，吞掉浏览器补发的事件
-let suppressIndex = -1;
+let swallowedClick = -1;     // 长按已处理的那一格：随后补发的 click 要丢掉
 let statusTimer = null;
 let currentMode = 'classic';
 let rotated = false;         // 窄屏上把宽扁的棋盘转 90°（见 computeRotation）
@@ -580,7 +579,8 @@ function act(fn, silent = false) {
   const result = fn();
 
   if (!result || !result.ok) {
-    if (!silent && result && result.reason) warn(result.reason);
+    // reason 是 i18n 的消息键，必须翻译 —— 直接显示会是 'reason.flagged' 这种东西
+    if (!silent && result && result.reason) warn(t(result.reason, result.detail));
     return;
   }
 
@@ -691,11 +691,15 @@ function indexFromEvent(event) {
 }
 
 /**
- * 长按插旗之后，浏览器还可能补发 contextmenu 和 click。
- * 用一个小时间窗统一忽略它们，避免同一格被插旗又取消。
+ * 长按处理过的那一格；随后浏览器补发的 click 要丢掉。
+ *
+ * 早先用的是"600ms 时间窗"，但按住一秒以上再松手时，click 会落在窗口之外，
+ * 于是它去点了那个刚被翻开的格子 —— 如果那是数字，还会意外触发和弦。
+ * 改成绑定手势本身：长按触发时记下这一格，下一次 pointerdown 时清掉。
+ * 这样按住多久都安全。
  */
 function isSuppressed(index) {
-  return performance.now() < suppressUntil && index === suppressIndex;
+  return index === swallowedClick;
 }
 
 /** 翻开：点在已翻开的数字上做和弦展开，否则翻开这一格 */
@@ -720,6 +724,12 @@ el.board.addEventListener('click', (event) => {
   // 触摸端单击 = 插旗；点在已翻开的数字上仍然是和弦展开
   // （已翻开的格子本来就插不了旗，两者不冲突）
   if (pressPointer !== 'mouse') {
+    // 还没开局时单击也翻开：首点由内核保证必开 0，不存在"点歪了踩雷"，
+    // 此时插旗没有任何意义，只会挡住开局这一下。
+    if (game.status === GameStatus.READY) {
+      revealAt(index);
+      return;
+    }
     if (cell.state === 'revealed') act(() => game.chordIndex(index), true);
     else act(() => game.toggleFlagIndex(index));
     return;
@@ -731,9 +741,15 @@ el.board.addEventListener('click', (event) => {
 
 el.board.addEventListener('contextmenu', (event) => {
   event.preventDefault();
+
+  // 这条只管鼠标右键。移动端长按也会触发 contextmenu，但那个手势已经由
+  // pointerdown 的计时器接管了 —— 不区分的话，长按会先被这里插上旗
+  // （部分 Android 的长按阈值比我们的 420ms 更短），然后我们的计时器
+  // 再按"该格已插旗"拒绝掉那次翻开。
+  if (pressPointer !== 'mouse') return;
+
   const index = indexFromEvent(event);
   if (index < 0) return;
-  if (isSuppressed(index)) return; // 触摸长按：不要再处理一次
   setCursor(index);
   act(() => game.toggleFlagIndex(index));
 });
@@ -759,14 +775,17 @@ el.board.addEventListener('auxclick', (event) => {
  */
 el.board.addEventListener('pointerdown', (event) => {
   pressPointer = event.pointerType || 'mouse';
+
+  // 新手势开始，上一轮长按留下的吞 click 标记作废
+  swallowedClick = -1;
+
   if (pressPointer === 'mouse') return;
 
   const index = indexFromEvent(event);
   if (index < 0) return;
 
   const timer = window.setTimeout(() => {
-    suppressIndex = index;
-    suppressUntil = performance.now() + 600;
+    swallowedClick = index;
     if (navigator.vibrate) navigator.vibrate(12);
     revealAt(index);
   }, LONG_PRESS_MS);

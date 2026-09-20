@@ -21,7 +21,7 @@
  * 否则测试跑的可能是缓存里的旧代码，结果没有意义。
  */
 
-import { computeProbabilities, sampleLayout } from './probability.js?v=27';
+import { computeProbabilities, sampleLayout } from './probability.js?v=28';
 
 /* ================================================================== */
 /* 基础设施                                                            */
